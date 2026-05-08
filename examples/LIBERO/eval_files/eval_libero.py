@@ -15,6 +15,7 @@ from libero.libero.envs import OffScreenRenderEnv
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from examples.LIBERO.eval_files.model2libero_interface import ModelClient
+from examples.LIBERO.eval_files.visual_prompter import VisualPrompter
 
 LIBERO_DUMMY_ACTION = [0.0] * 6 + [-1.0]
 LIBERO_ENV_RESOLUTION = 256  # resolution used to render training data
@@ -58,6 +59,8 @@ class Args:
 
     job_name: str = "test"
 
+    enable_visual_prompt: bool = False  # Enable VLM-based visual prompting
+
 
 def eval_libero(args: Args) -> None:
     logging.info(f"Arguments: {json.dumps(dataclasses.asdict(args), indent=4)}")
@@ -93,6 +96,8 @@ def eval_libero(args: Args) -> None:
         port=args.port,
         unnorm_key=args.unnorm_key,
     )
+
+    visual_prompter = VisualPrompter() if args.enable_visual_prompt else None
 
     # Optional smoke-test cap (still useful for quick verification with -1 = full run).
     n_eval_tasks = num_tasks_in_suite if args.max_tasks <= 0 else min(args.max_tasks, num_tasks_in_suite)
@@ -144,6 +149,9 @@ def eval_libero(args: Args) -> None:
                 # IMPORTANT: rotate 180 degrees to match train preprocessing
                 img = np.ascontiguousarray(obs["agentview_image"][::-1, ::-1])
                 wrist_img = np.ascontiguousarray(obs["robot0_eye_in_hand_image"][::-1, ::-1])
+
+                if args.enable_visual_prompt and visual_prompter is not None:
+                    img, wrist_img = visual_prompter.add_visual_prompt(img, wrist_img, str(task_description))
 
                 # Save preprocessed image for replay video
                 replay_images.append(img)
